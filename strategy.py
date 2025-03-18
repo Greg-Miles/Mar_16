@@ -145,7 +145,7 @@ class ChatFacade:
         :param strategy: Выбранный режим работы.
         :return: Выбранная модель ИИ.
         """
-        
+        # Тут можно было бы дать пользователю выбрать модель, но для упрощения задания я выбрал первую модель из списка
         if strategy == 'text':
             model = self.models['text'][0]
         elif strategy == 'image':
@@ -192,7 +192,7 @@ class ChatFacade:
     def get_history(self)-> list[dict]:
         """
         Метод для получения истории запросов и ответов.
-        :return: Список кортежей с запросами и ответами.
+        :return: Список словарей с запросами и ответами.
         """
         return self.history
 
