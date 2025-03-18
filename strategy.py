@@ -111,48 +111,36 @@ class ChatFacade:
         self.image_request = ImageRequestStrategy(api_key)
         self.history = []
         self.models = ['mistral-large-latest','mistral-small-latest','pixtral-large-latest','pixtral-12b-2409']
+        self.strategy = ''
 
-    def change_stategy(self, strategy_type: str)-> int:
+    def change_strategy(self, strategy_type: str)-> int:
         """
         Метод для выбора режима работы.
         :raises: ValueError: Если введен некорректный режим работы.
         :return: Выбранный режим работы.
         """
 
-        mode_str = input("""Выберите режим работы: 
-                     1 - текст, модель Mistral Large
-                     2 - текст, модель Mistral Small
-                     3 - изображение, модель Pixtral Large
-                     4 - изображение, модель Pixtral 12b
-                    """)
-        try:
-            mode = int(mode_str)
-            if mode not in range(1, 5):
-                print("Некорректный ввод. Пожалуйста, введите 1 или 2.")
-                return self.select_mode()
-        except ValueError:
-            print("Некорректный ввод. Пожалуйста, введите число.")
-            return self.select_mode()
-        return mode
+        if strategy_type == 'text' or strategy_type == 'image':
+            self.strategy = strategy_type
+        else:
+            raise ValueError("Некорректный режим работы")
 
-    def select_model(self, mode: int) -> str:
+        return self.strategy
+
+
+    def select_model(self, strategy: str) -> str:
         """
         Метод для выбора модели ИИ.
         :param mode: Выбранный режим работы.
         :return: Выбранная модель ИИ.
         """
         
-        match mode:
-            case 1:
-                model = 'mistral-large-latest'
-            case 2:
-                model = 'mistral-small-latest'
-            case 3:
-                model = 'pixtral-large-latest'
-            case 4:
-                model = 'pixtral-12b-2409'
-            case _:
-                model = 'mistral-large-latest'  # Значение по умолчанию
+        if strategy == 'text':
+            model = self.models[0]
+        elif strategy == 'image':
+            model = self.models[2]
+        else:
+            raise ValueError("Некорректный режим работы")
         
         return model
     
@@ -182,7 +170,8 @@ class ChatFacade:
         """
 
         if image_path:
-            response = self.image_request.execute(image_path, model)
+            base64_image = self.load_image(image_path)
+            response = self.image_request.execute(text, model, None, base64_image)
         else:
             response = self.text_request.execute(text, model)
         
@@ -201,3 +190,36 @@ class ChatFacade:
         Метод для очистки истории запросов и ответов.
         """
         self.history = []
+
+if __name__ == "__main__":
+    api_key = API_KEY
+    chat = ChatFacade(api_key)
+    
+    # Смена стратегии
+    chat.change_strategy("text")
+    
+    # Выбор модели
+    model = chat.select_model(chat.strategy)
+    
+    # Отправка текстового запроса
+    question = "Расскажите о последних новостях в IT."
+    response = chat.ask_question(question, model)
+    
+    print("Ответ от API:", response)
+    
+    # Смена стратегии на мультимодальную
+    chat.change_strategy("image")
+    
+    # Выбор модели
+    model = chat.select_model(chat.strategy)
+    
+    # Отправка запроса с изображением
+    image_path = "C:\\IT\\python\\homework\\Mar_2\\Mar_2\\Screenshot_13.png"
+    question = "Опишите это изображение"
+
+    response = chat.ask_question(question, model, image_path)
+    
+    print("Ответ от API:", response)
+    
+    # Просмотр истории запросов
+    print("История запросов:", chat.get_history())
