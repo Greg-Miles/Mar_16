@@ -1,5 +1,5 @@
 
-from settings import API_KEY
+from settings import API_KEY, MODELS
 import os, base64
 #pip install mistralai
 from mistralai import Mistral
@@ -25,26 +25,31 @@ class TextRequestStrategy(RequestStrategy):
 
         self.client = Mistral(api_key=api_key)
 
-
     def execute(self, text: str, model: str, history: list[dict] = None, img_path: str = None) -> dict:
         """
         Метод для отправки запроса на генерацию текста.
         :param text: Текст запроса.
         :param model: Модель ИИ, используемая для генерации текста.
+        :param history: История запросов и ответов.
+        :param img_path: Путь к изображению для чтения.
         :return: Словарь с ответом от модели ИИ.
         """
+        try:
+            chat_response = self.client.chat.complete(
+                model=model,
+                messages=[{
+                    "role": "user",
+                    "content": text
+                }]
+            )
+            return {
+                "response": chat_response.choices[0].message.content,
+                "model": model
+            }
 
-        chat_response = self.client.chat.complete(
-            model=model,
-            messages=[{
-                "role": "user",
-                "content": text
-            }]
-        )
-        return {
-            "response": chat_response.choices[0].message.content,
-            "model": model
-        }
+        except Exception as e:
+            return {"error": f"Unexpected error: {str(e)}", "model": model}
+        
 
 class ImageRequestStrategy(RequestStrategy):
     """
@@ -62,40 +67,43 @@ class ImageRequestStrategy(RequestStrategy):
     def execute(self, text: str, model: str, history: list[dict] = None, image_data: str = None) -> dict:
         """
         Метод для отправки запроса на составление описания изображения.
-        :param image_path: Путь к изображению.
+        :param text: Текст запроса.
         :param model: Модель ИИ, используемая для генерации текста.
+        :param history: История запросов и ответов.
+        :param image_data: Перекодированное изображение.
         :return: Словарь с ответом от модели ИИ.
         """
-
-
-              
-        response = self.client.chat.complete(
-            model=model,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                        "url": f"data:image/jpeg;base64,{image_data}"
+        try:      
+            response = self.client.chat.complete(
+                model=model,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_data}"
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": text
                         }
-                    },
-                    {
-                        "type": "text",
-                        "text": text
-                    }
-                ]
-            }]
-        )
-        return {
-            "response": response.choices[0].message.content,
-            "model": model
-        }
+                    ]
+                }]
+            )
+            return {
+                "response": response.choices[0].message.content,
+                "model": model
+            }
+
+        except Exception as e:
+            return {"error": f"Unexpected error: {str(e)}", "model": model}
 
 
 class ChatFacade:
     """
-    Фасад для связи ползьзователя и моделей ИИ.
+    Фасад для связи польззователя и моделей ИИ.
     """
 
     def __init__(self, api_key: str):
@@ -105,17 +113,20 @@ class ChatFacade:
         :attr text_request: Объект для отправки запроса на генерацию текста.
         :attr image_request: Объект для отправки запроса на чтение изображения.
         :attr history: История запросов и ответов.
+        :attr models: Список моделей ИИ.
+        :attr strategy: Выбранный режим работы.
         """
 
         self.text_request = TextRequestStrategy(api_key)
         self.image_request = ImageRequestStrategy(api_key)
         self.history = []
-        self.models = ['mistral-large-latest','mistral-small-latest','pixtral-large-latest','pixtral-12b-2409']
+        self.models = MODELS
         self.strategy = ''
 
     def change_strategy(self, strategy_type: str)-> int:
         """
         Метод для выбора режима работы.
+        :param strategy_type: Тип режима работы.
         :raises: ValueError: Если введен некорректный режим работы.
         :return: Выбранный режим работы.
         """
@@ -131,14 +142,14 @@ class ChatFacade:
     def select_model(self, strategy: str) -> str:
         """
         Метод для выбора модели ИИ.
-        :param mode: Выбранный режим работы.
+        :param strategy: Выбранный режим работы.
         :return: Выбранная модель ИИ.
         """
         
         if strategy == 'text':
-            model = self.models[0]
+            model = self.models['text'][0]
         elif strategy == 'image':
-            model = self.models[2]
+            model = self.models['image'][0]
         else:
             raise ValueError("Некорректный режим работы")
         
@@ -146,10 +157,10 @@ class ChatFacade:
     
     def load_image(self, image_path: str) -> str:
         """
-        Метод для валидации пути к изображению.
+        Метод для валидации пути к изображению и его обработки.
         :param image_path: Путь к изображению.
         :raises: FileNotFoundError: Если изображение не найдено.
-        :return: Путь к изображению.
+        :return: Перекодированное изображение.
         """
 
         if not os.path.exists(image_path):
